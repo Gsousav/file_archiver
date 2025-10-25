@@ -1,46 +1,40 @@
 """
-File Archiver - Smart File Organization Tool
-
-A maintainable, OOP Python file archiver that organizes files from messy
-folders into timestamped Archive sessions.
+File Archiver - Smart File Organization System
 """
 
 __version__ = "1.0.0"
 __author__ = "File Archiver Team"
 
+# Import main components
 from .core import (
     FileInfo,
-    DirectoryScore,
     ArchiveSession,
     ArchivePlan,
-    CollisionPolicy,
-    FileStatus,
+    DirectoryScore,
 )
 
 from .services import (
     DirectoryScanner,
     FileClassifier,
-    ContentAnalyzer,
     FileMover,
     Reporter,
+    ContentAnalyzer,
 )
 
-from .ui import CLI
+from .ui import BeautifulCLI
 
 __all__ = [
     # Core
-    "FileInfo",
-    "DirectoryScore",
-    "ArchiveSession",
-    "ArchivePlan",
-    "CollisionPolicy",
-    "FileStatus",
+    'FileInfo',
+    'ArchiveSession', 
+    'ArchivePlan',
+    'DirectoryScore',
     # Services
-    "DirectoryScanner",
-    "FileClassifier",
-    "ContentAnalyzer",
-    "FileMover",
-    "Reporter",
+    'DirectoryScanner',
+    'FileClassifier',
+    'FileMover',
+    'Reporter',
+    'ContentAnalyzer',
     # UI
-    "CLI",
+    'BeautifulCLI',
 ]

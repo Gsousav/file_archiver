@@ -1,8 +1,7 @@
 """
-UI module for File Archiver.
-Contains user interface implementations.
+User interface module.
 """
 
-from .cli import CLI, main
+from .cli_beautiful import BeautifulCLI, main
 
-__all__ = ["CLI", "main"]
+__all__ = ['BeautifulCLI', 'main']
