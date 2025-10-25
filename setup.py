@@ -51,7 +51,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "file-archiver=file_archiver.ui.cli:main",
+            "file-archiver=file_archiver.ui.cli_beautiful:main",
         ],
     },
     include_package_data=True,

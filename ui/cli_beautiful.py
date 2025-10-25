@@ -1,3 +1,4 @@
+
 """
 Beautiful, Apple-style CLI interface for File Archiver.
 Clean, minimal, and delightful to use.
@@ -23,7 +24,7 @@ from ..services import (
     FileMover,
     Reporter,
 )
-from ..utils import pluralize, format_file_size
+from ..utils import pluralize, format_file_size, create_directory_safe
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +60,17 @@ class BeautifulCLI:
         try:
             self._show_welcome()
             
-            # Step 1: Get directories
-            directories = self._get_directories()
+            # Step 1: Ask what user wants to do
+            mode = self._ask_mode()
+            
+            # Step 2: Get directories based on mode
+            if mode == "smart":
+                directories = self._smart_scan()
+            elif mode == "quick":
+                directories = [Path.home() / "Downloads"]
+            else:  # manual
+                directories = self._get_directories()
+            
             if not directories:
                 self.console.print("\n[dim]No directories selected. Goodbye! 👋[/dim]")
                 return
@@ -126,6 +136,151 @@ class BeautifulCLI:
         self.console.print("\n")
         self.console.print(welcome)
         self.console.print()
+    
+    def _ask_mode(self) -> str:
+        """Ask user which mode they want."""
+        self.console.print("[bold]What would you like to do?[/bold]\n")
+        
+        options_table = Table(
+            show_header=False,
+            border_style="dim",
+            box=None,
+            padding=(0, 2)
+        )
+        
+        options_table.add_column(style="blue", width=3)
+        options_table.add_column(style="")
+        
+        options_table.add_row("1", "🔍 Smart Scan - Find messy folders automatically")
+        options_table.add_row("2", "📁 Manual - Choose specific folders")
+        options_table.add_row("3", "⚡ Quick - Just ~/Downloads")
+        
+        self.console.print(options_table)
+        self.console.print()
+        
+        choice = Prompt.ask(
+            "[blue]›[/blue] Choice",
+            choices=["1", "2", "3"],
+            default="1"
+        )
+        
+        mode_map = {"1": "smart", "2": "manual", "3": "quick"}
+        return mode_map[choice]
+    
+    def _smart_scan(self) -> List[Path]:
+        """Perform smart scan to find messy directories."""
+        self.console.print("\n[bold]Smart Scan[/bold]\n")
+        
+        # Ask scope
+        scope_table = Table(
+            show_header=False,
+            border_style="dim",
+            box=None,
+            padding=(0, 2)
+        )
+        
+        scope_table.add_column(style="blue", width=3)
+        scope_table.add_column(style="")
+        
+        scope_table.add_row("1", "🏠 Entire Home folder")
+        scope_table.add_row("2", "📂 Common locations (Downloads, Desktop, Documents)")
+        scope_table.add_row("3", "💼 Work folders (Projects, Code, Work)")
+        scope_table.add_row("4", "🎯 Custom locations")
+        
+        self.console.print(scope_table)
+        self.console.print()
+        
+        scope = Prompt.ask(
+            "[blue]›[/blue] Scan scope",
+            choices=["1", "2", "3", "4"],
+            default="2"
+        )
+        
+        # Get directories to scan based on scope
+        scan_dirs = []
+        home = Path.home()
+        
+        if scope == "1":
+            # Entire home
+            scan_dirs = [home]
+        elif scope == "2":
+            # Common locations
+            common = ["Downloads", "Desktop", "Documents", "Pictures"]
+            scan_dirs = [home / d for d in common if (home / d).exists()]
+        elif scope == "3":
+            # Work folders
+            work = ["Projects", "Code", "Work", "dev", "Development"]
+            scan_dirs = [home / d for d in work if (home / d).exists()]
+        else:
+            # Custom
+            return self._get_directories()
+        
+        # Perform deep scan
+        self.console.print("\n[bold]Scanning your Mac...[/bold]")
+        
+        all_directories = []
+        scanned_count = 0
+        
+        with Progress(
+            SpinnerColumn(style="blue"),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(complete_style="blue"),
+            console=self.console,
+            transient=True
+        ) as progress:
+            
+            task = progress.add_task("Finding folders...", total=None)
+            
+            for scan_dir in scan_dirs:
+                try:
+                    for item in scan_dir.rglob("*"):
+                        if item.is_dir() and not self._should_skip_dir(item):
+                            all_directories.append(item)
+                            scanned_count += 1
+                            
+                            if scanned_count % 50 == 0:
+                                progress.update(task, description=f"Checked {scanned_count:,} folders...")
+                except PermissionError:
+                    continue
+            
+            progress.update(task, description=f"Checked {scanned_count:,} folders")
+        
+        # Scan all found directories
+        self.console.print(f"[green]✓[/green] Found {len(all_directories)} folders\n")
+        
+        # Now scan them for messiness
+        recommendations = self._scan_directories(all_directories)
+        
+        if not recommendations:
+            self.console.print("[green]✓[/green] All folders are clean!\n")
+            return []
+        
+        self.console.print(f"[yellow]Found {len(recommendations)} messy folders![/yellow] 🎯\n")
+        
+        return [rec.path for rec in recommendations]
+    
+    def _should_skip_dir(self, directory: Path) -> bool:
+        """Check if directory should be skipped during scan."""
+        skip_names = {
+            '.git', 'node_modules', '.venv', 'venv', '__pycache__',
+            '.cache', 'Library', '.Trash', '.npm', '.cargo',
+            'Applications', 'System', '.local', '.config'
+        }
+        
+        # Skip hidden dirs (except user home)
+        if directory.name.startswith('.') and directory != Path.home():
+            return True
+        
+        # Skip system dirs
+        if directory.name in skip_names:
+            return True
+        
+        # Skip if no read permission
+        try:
+            next(directory.iterdir(), None)
+            return False
+        except PermissionError:
+            return True
     
     def _get_directories(self) -> List[Path]:
         """Get directories from user with beautiful prompt."""
@@ -383,7 +538,7 @@ class BeautifulCLI:
             task = progress.add_task("Moving files...", total=len(files))
             
             # Create session directory
-            self.mover.create_directory_safe(live_session.archive_path)
+            create_directory_safe(live_session.archive_path)
             
             # Move files
             for file_info in live_session.files:
