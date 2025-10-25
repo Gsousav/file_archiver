@@ -5,6 +5,7 @@ Contains configuration, models, and data structures.
 
 from .config import (
     CATEGORIES,
+    CATEGORY_DISPLAY_NAMES,
     ARCHIVE_BASE_DIR,
     SESSION_PREFIX,
     get_category_for_extension,
@@ -22,6 +23,7 @@ from .models import (
 
 __all__ = [
     "CATEGORIES",
+    "CATEGORY_DISPLAY_NAMES",
     "ARCHIVE_BASE_DIR",
     "SESSION_PREFIX",
     "get_category_for_extension",

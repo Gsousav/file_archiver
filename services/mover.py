@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
-from ..core import FileInfo, FileStatus, CollisionPolicy, ArchiveSession, ArchivePlan
+from ..core import FileInfo, FileStatus, CollisionPolicy, ArchiveSession, ArchivePlan, CATEGORY_DISPLAY_NAMES
 from ..core.config import (
     ARCHIVE_BASE_DIR,
     SESSION_PREFIX,
@@ -34,6 +34,7 @@ class FileMover:
         self,
         archive_base: Path = ARCHIVE_BASE_DIR,
         collision_policy: str = DEFAULT_COLLISION_POLICY,
+        use_source_parent: bool = False,
     ):
         """
         Initialize the file mover.
@@ -41,9 +42,11 @@ class FileMover:
         Args:
             archive_base: Base directory for archives
             collision_policy: How to handle file collisions
+            use_source_parent: If True, save archive in the source directory's parent folder
         """
         self.archive_base = archive_base
         self.collision_policy = CollisionPolicy(collision_policy)
+        self.use_source_parent = use_source_parent
 
     def create_session(
         self,
@@ -63,10 +66,23 @@ class FileMover:
             ArchiveSession object
         """
         timestamp = datetime.now()
-        session_id = f"{SESSION_PREFIX}_{format_timestamp(timestamp)}"
+        
+        # Create a descriptive session name with source folder info
+        if len(source_directories) == 1:
+            source_name = source_directories[0].name
+            session_id = f"{source_name}_{SESSION_PREFIX}_{format_timestamp(timestamp)}"
+        else:
+            session_id = f"Multiple_Folders_{SESSION_PREFIX}_{format_timestamp(timestamp)}"
+        
+        # Determine archive base directory
+        if self.use_source_parent and source_directories:
+            # Save in the parent directory of the first source
+            archive_base = source_directories[0].parent
+        else:
+            archive_base = self.archive_base
 
         # Create session directory path
-        session_path = self.archive_base / session_id
+        session_path = archive_base / session_id
 
         session = ArchiveSession(
             session_id=session_id,
@@ -78,6 +94,7 @@ class FileMover:
         )
 
         logger.info(f"Created {'dry-run' if dry_run else 'live'} session: {session_id}")
+        logger.info(f"Archive location: {session_path}")
 
         return session
 
@@ -180,8 +197,9 @@ class FileMover:
         Returns:
             Destination path
         """
-        # Create category subdirectory
-        category_dir = session_path / file_info.category
+        # Create category subdirectory with display name
+        category_display = CATEGORY_DISPLAY_NAMES.get(file_info.category, file_info.category)
+        category_dir = session_path / category_display
 
         # Destination file path
         destination = category_dir / file_info.name

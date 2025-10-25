@@ -10,15 +10,33 @@ from typing import Dict, List
 # Archive Settings
 # ================================
 
-# Base archive directory (relative to user's home)
-ARCHIVE_BASE_DIR = Path.home() / "Archive"
+# Base archive directory (Desktop for easy access)
+ARCHIVE_BASE_DIR = Path.home() / "Desktop"
 
-# Session folder prefix
-SESSION_PREFIX = "Align"
+# Session folder prefix (more descriptive)
+SESSION_PREFIX = "Files_Organized"
 
 # ================================
 # File Categories
 # ================================
+
+# User-friendly names for category folders
+CATEGORY_DISPLAY_NAMES: Dict[str, str] = {
+    "documents": "📄 Documents",
+    "spreadsheets": "📊 Spreadsheets",
+    "presentations": "📽️ Presentations",
+    "images": "🖼️ Images",
+    "videos": "🎬 Videos",
+    "audio": "🎵 Audio",
+    "archives": "📦 Archives",
+    "code": "💻 Code",
+    "executables": "⚙️ Executables",
+    "fonts": "🔤 Fonts",
+    "ebooks": "📚 Ebooks",
+    "design": "🎨 Design",
+    "databases": "💾 Databases",
+    "other": "📁 Other",
+}
 
 CATEGORIES: Dict[str, List[str]] = {
     "documents": [
