@@ -239,31 +239,105 @@ class Reporter:
 
         return "".join(files_html)
 
+    def _group_duplicates(self, duplicate_pairs: list) -> list:
+        """
+        Group duplicate file pairs into connected groups.
+        
+        Uses union-find to group files that are duplicates of each other.
+        For example, if A==B and B==C, they all belong to the same group.
+        
+        Args:
+            duplicate_pairs: List of (file1, file2) tuples
+            
+        Returns:
+            List of groups, where each group is a list of duplicate files
+        """
+        if not duplicate_pairs:
+            return []
+        
+        # Build a map of files to their group (union-find)
+        file_to_group = {}
+        groups = []
+        
+        def find_group(file):
+            """Find which group a file belongs to."""
+            if file not in file_to_group:
+                return None
+            return file_to_group[file]
+        
+        for file1, file2 in duplicate_pairs:
+            group1 = find_group(file1)
+            group2 = find_group(file2)
+            
+            if group1 is None and group2 is None:
+                # Create new group
+                new_group = [file1, file2]
+                groups.append(new_group)
+                file_to_group[file1] = new_group
+                file_to_group[file2] = new_group
+            elif group1 is None:
+                # Add file1 to group2
+                group2.append(file1)
+                file_to_group[file1] = group2
+            elif group2 is None:
+                # Add file2 to group1
+                group1.append(file2)
+                file_to_group[file2] = group1
+            elif group1 is not group2:
+                # Merge two groups
+                group1.extend(group2)
+                for file in group2:
+                    file_to_group[file] = group1
+                groups.remove(group2)
+        
+        # Sort groups by size (largest first) and sort files within groups by name
+        for group in groups:
+            group.sort(key=lambda f: f.name)
+        groups.sort(key=len, reverse=True)
+        
+        return groups
+
     def _build_warnings(self, session: ArchiveSession) -> str:
         """Build the warnings/errors section."""
         warnings_html = []
 
         # Duplicate warnings
         if session.duplicate_count > 0:
+            # Group duplicates together
+            duplicate_groups = self._group_duplicates(session.duplicates)
+            
             duplicate_list = []
-            for file1, file2 in session.duplicates[:10]:  # Show first 10
-                duplicate_list.append(
-                    f"<li><strong>{file1.name}</strong> and <strong>{file2.name}</strong></li>"
-                )
+            groups_to_show = min(10, len(duplicate_groups))
+            
+            for idx, group in enumerate(duplicate_groups[:groups_to_show], 1):
+                file_names = [f"<code>{f.name}</code>" for f in group]
+                
+                if len(group) == 2:
+                    # For pairs, show them inline
+                    duplicate_list.append(
+                        f"<li><strong>Group {idx}:</strong> {file_names[0]} and {file_names[1]}</li>"
+                    )
+                else:
+                    # For larger groups, show as a nested list
+                    files_html = "<ul style='margin: 0.5rem 0;'>" + "".join(
+                        f"<li>{name}</li>" for name in file_names
+                    ) + "</ul>"
+                    duplicate_list.append(
+                        f"<li><strong>Group {idx}</strong> ({len(group)} identical files):{files_html}</li>"
+                    )
 
-            remaining_duplicates = session.duplicate_count - min(
-                10, session.duplicate_count
-            )
-            if remaining_duplicates > 0:
+            remaining_groups = len(duplicate_groups) - groups_to_show
+            if remaining_groups > 0:
+                total_files_in_remaining = sum(len(group) for group in duplicate_groups[groups_to_show:])
                 duplicate_list.append(
-                    f"<li>... and {remaining_duplicates} more duplicate pairs</li>"
+                    f"<li>... and {remaining_groups} more duplicate groups ({total_files_in_remaining} files)</li>"
                 )
 
             warnings_html.append(
                 f"""
             <div class="alert alert-warning">
-                <strong>⚠️ Duplicates Found:</strong>
-                <ul>
+                <strong>⚠️ Duplicates Found:</strong> {len(duplicate_groups)} group(s) of identical files
+                <ul style="margin-top: 0.75rem;">
                     {"".join(duplicate_list)}
                 </ul>
             </div>
