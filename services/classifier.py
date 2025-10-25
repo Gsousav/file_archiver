@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from ..core import FileInfo, FileStatus
 from ..core.config import get_category_for_extension
-from ..utils import get_file_extension, get_file_size, get_file_hash
+from ..utils import get_file_extension, get_file_size, get_file_hash, is_hidden_file
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,10 @@ class FileClassifier:
             pattern = "**/*" if recursive else "*"
 
             for item in directory.glob(pattern):
+                # Skip hidden files and directories
+                if is_hidden_file(item):
+                    continue
+                    
                 if item.is_file():
                     file_info = self.classify_file(item)
                     files.append(file_info)

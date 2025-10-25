@@ -66,58 +66,64 @@ class BeautifulCLI:
             # Step 2: Get directories based on mode
             if mode == "smart":
                 directories = self._smart_scan()
-            elif mode == "quick":
-                directories = [Path.home() / "Downloads"]
-            else:  # manual
-                directories = self._get_directories()
-            
-            if not directories:
-                self.console.print("\n[dim]No directories selected. Goodbye! 👋[/dim]")
-                return
-            
-            # Step 2: Scan with progress
-            recommendations = self._scan_directories(directories)
-            if not recommendations:
-                self._show_no_recommendations()
-                return
-            
-            # Step 3: Show recommendations
-            self._show_recommendations(recommendations)
-            
-            # Step 4: Select directories
-            selected_dirs = self._select_directories(recommendations)
-            if not selected_dirs:
-                self.console.print("\n[dim]No directories selected. Goodbye! 👋[/dim]")
-                return
+                
+                if not directories:
+                    self.console.print("\n[dim]No directories selected. Goodbye! 👋[/dim]")
+                    return
+                
+                # Scan and filter for smart mode only
+                recommendations = self._scan_directories(directories)
+                if not recommendations:
+                    self._show_no_recommendations()
+                    return
+                
+                # Show recommendations
+                self._show_recommendations(recommendations)
+                
+                # Select directories
+                selected_dirs = self._select_directories(recommendations)
+                if not selected_dirs:
+                    self.console.print("\n[dim]No directories selected. Goodbye! 👋[/dim]")
+                    return
+            else:
+                # For quick and manual mode: use directories directly without filtering
+                if mode == "quick":
+                    selected_dirs = [Path.home() / "Downloads"]
+                else:  # manual
+                    selected_dirs = self._get_directories()
+                
+                if not selected_dirs:
+                    self.console.print("\n[dim]No directories selected. Goodbye! 👋[/dim]")
+                    return
             
             # Initialize mover (will save to Desktop by default)
             self.mover = FileMover()
             
-            # Step 5: Analyze files
+            # Step 3: Analyze files
             files = self._analyze_files(selected_dirs)
             if not files:
                 self.console.print("\n[yellow]No files found to organize.[/yellow]")
                 return
             
-            # Step 6: Find duplicates
+            # Step 4: Find duplicates
             duplicates = self._find_duplicates(files)
             
-            # Step 7: Create session and show preview
+            # Step 5: Create session and show preview
             session = self.mover.create_session(selected_dirs, files, dry_run=True)
             session.duplicates = duplicates
             plan = self.mover.plan_archive(session)
             
             self._show_beautiful_preview(plan)
             
-            # Step 8: Confirm
+            # Step 6: Confirm
             if not self._confirm_execution():
                 self.console.print("\n[dim]Operation cancelled. No files were moved. 👋[/dim]")
                 return
             
-            # Step 9: Execute with progress
+            # Step 7: Execute with progress
             result_session = self._execute_with_progress(selected_dirs, files, duplicates)
             
-            # Step 10: Show success
+            # Step 8: Show success
             self._show_success(result_session)
             
         except KeyboardInterrupt:
@@ -235,6 +241,11 @@ class BeautifulCLI:
             task = progress.add_task("Finding folders...", total=None)
             
             for scan_dir in scan_dirs:
+                # Add the parent directory itself first
+                if not self._should_skip_dir(scan_dir):
+                    all_directories.append(scan_dir)
+                    scanned_count += 1
+                
                 try:
                     for item in scan_dir.rglob("*"):
                         if item.is_dir() and not self._should_skip_dir(item):
@@ -434,11 +445,16 @@ class BeautifulCLI:
         ) as progress:
             
             task = progress.add_task("Classifying files...", total=None)
-            files = self.classifier.classify_multiple_directories(directories)
+            # Don't recursively scan into subdirectories
+            # Only scan files directly in the specified directory
+            all_files = []
+            for directory in directories:
+                files = self.classifier.classify_directory(directory, recursive=False)
+                all_files.extend(files)
             progress.update(task, completed=True)
         
-        self.console.print(f"[green]✓[/green] Found {len(files)} files\n")
-        return files
+        self.console.print(f"[green]✓[/green] Found {len(all_files)} files\n")
+        return all_files
     
     def _find_duplicates(self, files: List) -> List:
         """Find duplicates with progress."""
@@ -565,10 +581,23 @@ class BeautifulCLI:
         ) as progress:
             
             task = progress.add_task("Generating report...", total=None)
-            report_path = self.reporter.generate_html_report(live_session)
-            progress.update(task, completed=True)
+            try:
+                # Debug: Verify archive path exists
+                if not live_session.archive_path.exists():
+                    logger.warning(f"Archive path does not exist: {live_session.archive_path}")
+                    self.console.print(f"[yellow]⚠️  Warning: Archive directory not found: {live_session.archive_path}[/yellow]")
+                else:
+                    logger.info(f"Generating report at: {live_session.archive_path}")
+                
+                report_path = self.reporter.generate_html_report(live_session)
+                live_session.report_path = report_path
+                progress.update(task, completed=True)
+                logger.info(f"Report generated successfully: {report_path}")
+            except Exception as e:
+                logger.error(f"Error generating report: {e}", exc_info=True)
+                self.console.print(f"[yellow]⚠️  Warning: Report generation failed: {e}[/yellow]")
+                live_session.report_path = None
         
-        live_session.report_path = report_path
         return live_session
     
     def _show_success(self, session):
@@ -578,9 +607,11 @@ class BeautifulCLI:
         # Success panel
         success_text = (
             f"[green]✓ Successfully organized {session.success_count} files[/green]\n\n"
-            f"[dim]Archive:[/dim] [cyan]{session.archive_path}[/cyan]\n"
-            f"[dim]Report:[/dim] [blue]{session.report_path}[/blue]"
+            f"[dim]Archive:[/dim] [cyan]{session.archive_path}[/cyan]"
         )
+        
+        if hasattr(session, 'report_path') and session.report_path:
+            success_text += f"\n[dim]Report:[/dim] [blue]{session.report_path}[/blue]"
         
         if session.error_count > 0:
             success_text += f"\n\n[yellow]⚠ {session.error_count} files had errors[/yellow]"

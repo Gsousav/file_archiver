@@ -69,6 +69,16 @@ class FileInfo:
 
     def __repr__(self) -> str:
         return f"FileInfo({self.name}, {self.size_formatted}, {self.category})"
+    
+    def __hash__(self) -> int:
+        """Make FileInfo hashable based on its path."""
+        return hash(self.path)
+    
+    def __eq__(self, other) -> bool:
+        """Check equality based on path."""
+        if not isinstance(other, FileInfo):
+            return False
+        return self.path == other.path
 
 
 @dataclass
