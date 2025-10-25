@@ -90,9 +90,8 @@ class BeautifulCLI:
                 self.console.print("\n[dim]No directories selected. Goodbye! 👋[/dim]")
                 return
             
-            # Step 4.5: Ask where to save the organized files
-            use_source_parent = self._ask_save_location(selected_dirs)
-            self.mover = FileMover(use_source_parent=use_source_parent)
+            # Initialize mover (will save to Desktop by default)
+            self.mover = FileMover()
             
             # Step 5: Analyze files
             files = self._analyze_files(selected_dirs)
@@ -423,51 +422,6 @@ class BeautifulCLI:
         
         return selected
     
-    def _ask_save_location(self, selected_dirs: List[Path]) -> bool:
-        """Ask user where to save the organized files."""
-        self.console.print("\n[bold]Where should we save the organized files?[/bold]\n")
-        
-        location_table = Table(
-            show_header=False,
-            border_style="dim",
-            box=None,
-            padding=(0, 2)
-        )
-        
-        location_table.add_column(style="blue", width=3)
-        location_table.add_column(style="")
-        
-        # Show options based on selected directories
-        if len(selected_dirs) == 1:
-            parent = selected_dirs[0].parent
-            location_table.add_row("1", f"💻 Desktop (~/Desktop)")
-            location_table.add_row("2", f"📂 Next to source folder ({parent})")
-        else:
-            location_table.add_row("1", f"💻 Desktop (~/Desktop)")
-            location_table.add_row("2", f"📂 Next to first source folder")
-        
-        self.console.print(location_table)
-        self.console.print()
-        
-        choice = Prompt.ask(
-            "[blue]›[/blue] Location",
-            choices=["1", "2"],
-            default="1"
-        )
-        
-        use_source_parent = (choice == "2")
-        
-        if use_source_parent:
-            if len(selected_dirs) == 1:
-                save_location = selected_dirs[0].parent
-            else:
-                save_location = selected_dirs[0].parent
-            self.console.print(f"[green]✓[/green] Will save to: {save_location}\n")
-        else:
-            self.console.print(f"[green]✓[/green] Will save to: ~/Desktop\n")
-        
-        return use_source_parent
-    
     def _analyze_files(self, directories: List[Path]) -> List:
         """Analyze files with progress."""
         self.console.print("\n[bold]Analyzing Files[/bold]")
@@ -522,7 +476,8 @@ class BeautifulCLI:
         summary_table.add_column(style="dim")
         summary_table.add_column(style="bold")
         
-        summary_table.add_row("📁 Archive", session.archive_path.name)
+        summary_table.add_row("📁 Archive Name", session.archive_path.name)
+        summary_table.add_row("💻 Save Location", "Desktop")
         summary_table.add_row("📊 Total Files", str(session.total_files))
         summary_table.add_row("💾 Total Size", format_file_size(session.total_size))
         if session.duplicate_count > 0:
