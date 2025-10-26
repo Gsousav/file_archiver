@@ -5,6 +5,7 @@ Scans directories and provides recommendations for archiving.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import List, Set
 
@@ -16,6 +17,7 @@ from ..core.config import (
     IGNORE_HIDDEN_FILES,
     IGNORE_SYSTEM_DIRS,
     RECURSIVE_SCAN,
+    SESSION_PREFIX,
 )
 from ..utils import (
     is_hidden_file,
@@ -98,8 +100,8 @@ class DirectoryScanner:
                 if self.ignore_hidden and is_hidden_file(item):
                     continue
                 
-                # Skip if parent is a system directory (only relevant in recursive mode)
-                if scan_recursive and self._is_in_system_directory(item):
+                # Skip if parent is a system directory or archive directory (only relevant in recursive mode)
+                if scan_recursive and (self._is_in_system_directory(item) or self._is_in_archive_directory(item)):
                     continue
                 
                 # Count file
@@ -223,11 +225,55 @@ class DirectoryScanner:
     
     def _should_skip_directory(self, directory: Path) -> bool:
         """Check if a directory should be skipped."""
-        return is_system_directory(directory, self.ignore_system_dirs)
+        # Skip system directories
+        if is_system_directory(directory, self.ignore_system_dirs):
+            return True
+        
+        # Skip archiver's own output directories
+        if self._is_archive_output_directory(directory):
+            return True
+        
+        return False
+    
+    def _is_archive_output_directory(self, directory: Path) -> bool:
+        """
+        Check if a directory is an archive output created by this tool.
+        
+        Archive directories follow the pattern: *_{SESSION_PREFIX}_{timestamp}
+        where timestamp is in the format YYYYMMDD_HHMMSS
+        
+        Args:
+            directory: Directory to check
+            
+        Returns:
+            True if this is an archive output directory
+        """
+        dir_name = directory.name
+        
+        # Check if the directory name contains the session prefix
+        if SESSION_PREFIX not in dir_name:
+            return False
+        
+        # Pattern: anything followed by SESSION_PREFIX and a timestamp
+        # Example: file_archiver_test_noise_Files_Organized_20251026_015237
+        pattern = rf'.*_{re.escape(SESSION_PREFIX)}_\d{{8}}_\d{{6}}$'
+        
+        if re.match(pattern, dir_name):
+            logger.debug(f"Skipping archive output directory: {dir_name}")
+            return True
+        
+        return False
     
     def _is_in_system_directory(self, file_path: Path) -> bool:
         """Check if a file is inside a system directory."""
         for parent in file_path.parents:
             if is_system_directory(parent, self.ignore_system_dirs):
+                return True
+        return False
+    
+    def _is_in_archive_directory(self, file_path: Path) -> bool:
+        """Check if a file is inside an archive output directory."""
+        for parent in file_path.parents:
+            if self._is_archive_output_directory(parent):
                 return True
         return False

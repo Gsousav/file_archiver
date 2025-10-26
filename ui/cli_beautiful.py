@@ -5,6 +5,7 @@ Clean, minimal, and delightful to use.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import List, Optional
 from rich.console import Console
@@ -18,6 +19,7 @@ from rich import box
 from rich.style import Style
 
 from ..core import DirectoryScore, ArchiveSession
+from ..core.config import SESSION_PREFIX
 from ..services import (
     DirectoryScanner,
     FileClassifier,
@@ -290,12 +292,41 @@ class BeautifulCLI:
         if directory.name in skip_names:
             return True
         
+        # Skip archiver's own output directories
+        if self._is_archive_directory(directory):
+            return True
+        
         # Skip if no read permission
         try:
             next(directory.iterdir(), None)
             return False
         except PermissionError:
             return True
+    
+    def _is_archive_directory(self, directory: Path) -> bool:
+        """
+        Check if a directory is an archive output created by this tool.
+        
+        Archive directories follow the pattern: *_{SESSION_PREFIX}_{timestamp}
+        where timestamp is in the format YYYYMMDD_HHMMSS
+        
+        Args:
+            directory: Directory to check
+            
+        Returns:
+            True if this is an archive output directory
+        """
+        dir_name = directory.name
+        
+        # Check if the directory name contains the session prefix
+        if SESSION_PREFIX not in dir_name:
+            return False
+        
+        # Pattern: anything followed by SESSION_PREFIX and a timestamp
+        # Example: file_archiver_test_noise_Files_Organized_20251026_015237
+        pattern = rf'.*_{re.escape(SESSION_PREFIX)}_\d{{8}}_\d{{6}}$'
+        
+        return bool(re.match(pattern, dir_name))
     
     def _get_directories(self) -> List[Path]:
         """Get directories from user with beautiful prompt."""
