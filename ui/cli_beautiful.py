@@ -40,6 +40,7 @@ class BeautifulCLI:
     def __init__(self):
         """Initialize the CLI."""
         self.console = Console()
+        # Scanner uses config default for recursive behavior (matches classification)
         self.scanner = DirectoryScanner()
         self.classifier = FileClassifier(enable_hashing=True)
         self.mover = None  # Will be initialized after getting save location
@@ -374,19 +375,27 @@ class BeautifulCLI:
         )
         
         table.add_column("#", style="dim", width=3)
-        table.add_column("Folder", style="cyan")
+        table.add_column("Folder", style="cyan", overflow="fold")
         table.add_column("Files", justify="right", style="blue")
         table.add_column("Types", justify="right", style="magenta")
         table.add_column("Size", justify="right", style="yellow")
         table.add_column("Score", justify="right")
         
+        home = Path.home()
         for i, rec in enumerate(recommendations, 1):
             # Score with emoji
             score_display = self._score_emoji(rec.score)
             
+            # Display relative path from home or absolute path
+            try:
+                display_path = f"~/{rec.path.relative_to(home)}"
+            except ValueError:
+                # Not relative to home, use absolute path
+                display_path = str(rec.path)
+            
             table.add_row(
                 str(i),
-                rec.path.name,
+                display_path,
                 str(rec.total_files),
                 str(rec.file_types),
                 rec.size_formatted,
@@ -445,11 +454,11 @@ class BeautifulCLI:
         ) as progress:
             
             task = progress.add_task("Classifying files...", total=None)
-            # Don't recursively scan into subdirectories
-            # Only scan files directly in the specified directory
+            # Use the same recursive setting as the scanner for consistency
+            # This ensures what we scan matches what we classify
             all_files = []
             for directory in directories:
-                files = self.classifier.classify_directory(directory, recursive=False)
+                files = self.classifier.classify_directory(directory, recursive=self.scanner.recursive)
                 all_files.extend(files)
             progress.update(task, completed=True)
         

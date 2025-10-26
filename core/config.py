@@ -182,6 +182,13 @@ IGNORE_SYSTEM_DIRS = {
     "Applications",
 }
 
+# Recursive scanning behavior
+# When False: Only scans files directly in the specified directory (not subdirectories)
+# When True: Recursively scans all subdirectories
+# Setting this to False (default) ensures consistency between scanning and classification
+# and prevents the "directory appears messy but has no files" issue
+RECURSIVE_SCAN = False
+
 # ================================
 # Duplicate Detection
 # ================================

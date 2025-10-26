@@ -93,6 +93,7 @@ class DirectoryScore:
     total_size: int
     score: float
     extensions: Set[str] = field(default_factory=set)
+    recursive: bool = False  # Whether this score includes subdirectories
 
     @property
     def size_formatted(self) -> str:

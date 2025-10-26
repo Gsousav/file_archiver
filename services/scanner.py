@@ -15,6 +15,7 @@ from ..core.config import (
     COUNT_WEIGHT,
     IGNORE_HIDDEN_FILES,
     IGNORE_SYSTEM_DIRS,
+    RECURSIVE_SCAN,
 )
 from ..utils import (
     is_hidden_file,
@@ -33,28 +34,36 @@ class DirectoryScanner:
     
     def __init__(self,
                  ignore_hidden: bool = IGNORE_HIDDEN_FILES,
-                 ignore_system_dirs: Set[str] = IGNORE_SYSTEM_DIRS):
+                 ignore_system_dirs: Set[str] = IGNORE_SYSTEM_DIRS,
+                 recursive: bool = None):
         """
         Initialize the scanner.
         
         Args:
             ignore_hidden: Whether to ignore hidden files
             ignore_system_dirs: Set of system directory names to ignore
+            recursive: Whether to scan subdirectories recursively (None uses config default)
         """
         self.ignore_hidden = ignore_hidden
         self.ignore_system_dirs = ignore_system_dirs
+        # Use config value if not explicitly specified
+        self.recursive = recursive if recursive is not None else RECURSIVE_SCAN
     
-    def scan_directory(self, directory: Path) -> DirectoryScore:
+    def scan_directory(self, directory: Path, recursive: bool = None) -> DirectoryScore:
         """
         Scan a directory and calculate its archiving score.
         
         Args:
             directory: Directory to scan
+            recursive: Override the instance recursive setting for this scan
             
         Returns:
             DirectoryScore object
         """
-        logger.info(f"Scanning directory: {directory}")
+        # Use parameter if provided, otherwise use instance setting
+        scan_recursive = recursive if recursive is not None else self.recursive
+        
+        logger.info(f"Scanning directory: {directory} (recursive={scan_recursive})")
         
         # Validate directory
         is_valid, error = validate_directory(directory)
@@ -65,7 +74,8 @@ class DirectoryScanner:
                 total_files=0,
                 file_types=0,
                 total_size=0,
-                score=0.0
+                score=0.0,
+                recursive=scan_recursive
             )
         
         total_files = 0
@@ -73,7 +83,11 @@ class DirectoryScanner:
         extensions: Set[str] = set()
         
         try:
-            for item in directory.rglob("*"):
+            # Use rglob for recursive, glob for non-recursive
+            pattern = "**/*" if scan_recursive else "*"
+            iterator = directory.glob(pattern)
+            
+            for item in iterator:
                 # Skip directories
                 if item.is_dir():
                     if self._should_skip_directory(item):
@@ -84,8 +98,8 @@ class DirectoryScanner:
                 if self.ignore_hidden and is_hidden_file(item):
                     continue
                 
-                # Skip if parent is a system directory
-                if self._is_in_system_directory(item):
+                # Skip if parent is a system directory (only relevant in recursive mode)
+                if scan_recursive and self._is_in_system_directory(item):
                     continue
                 
                 # Count file
@@ -118,7 +132,8 @@ class DirectoryScanner:
             file_types=len(extensions),
             total_size=total_size,
             score=score,
-            extensions=extensions
+            extensions=extensions,
+            recursive=scan_recursive
         )
     
     def scan_multiple_directories(self, 

@@ -76,6 +76,22 @@ Edit `core/config.py` to customize:
 - Duplicate detection settings
 - Collision handling policies
 - Archive directory location
+- **Scanning behavior** (recursive vs non-recursive)
+
+### Important: Recursive Scanning
+
+By default, the archiver uses **non-recursive scanning** (`RECURSIVE_SCAN = False` in `config.py`). This means:
+
+- ✅ **Consistent behavior**: Scanner and classifier both look at files directly in the directory
+- ✅ **Accurate recommendations**: What you see in recommendations is what you get when organizing
+- ✅ **No mismatches**: Avoids the issue where a subdirectory is messy but the parent appears clean
+
+**When to change to `RECURSIVE_SCAN = True`:**
+- You want to scan and organize files in all subdirectories recursively
+- You're working with deep folder hierarchies
+- You want one operation to clean up an entire directory tree
+
+**Note:** The scanner and classifier always use the same recursive setting to ensure consistency.
 
 ## Extending
 

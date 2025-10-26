@@ -171,6 +171,29 @@ After running, you'll have:
     └── archive_report.html         # Beautiful HTML report
 ```
 
+## Important: Understanding Scanning Behavior
+
+**By default, File Archiver scans only files directly in each directory (non-recursive).** 
+
+This means if you scan `~/Desktop`, it will only look at files directly on your Desktop, not files inside `~/Desktop/Projects` or other subdirectories.
+
+### Why Non-Recursive by Default?
+
+- ✅ **Consistency**: What you see in recommendations is exactly what gets organized
+- ✅ **No Surprises**: Avoids the "Desktop looks messy but has no files" problem
+- ✅ **Precision**: You know exactly which directory level you're cleaning
+
+### Want to Scan Subdirectories Too?
+
+If you want to include all subdirectories, change this in `core/config.py`:
+
+```python
+# Change from False to True
+RECURSIVE_SCAN = True
+```
+
+Then both scanning and organizing will work recursively through all subdirectories.
+
 ## Pro Tips
 
 ### 1. Test First with Dry-Run

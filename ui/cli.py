@@ -27,6 +27,7 @@ class CLI:
 
     def __init__(self):
         """Initialize the CLI."""
+        # Scanner uses config default for recursive behavior (matches classification)
         self.scanner = DirectoryScanner()
         self.classifier = FileClassifier(enable_hashing=True)
         self.mover = FileMover()
@@ -62,7 +63,12 @@ class CLI:
             print(
                 f"\n🔍 Analyzing files in {len(selected_dirs)} {pluralize(len(selected_dirs), 'directory', 'directories').split()[1]}..."
             )
-            files = self.classifier.classify_multiple_directories(selected_dirs)
+            # Use consistent recursive setting between scanner and classifier
+            # Temporarily override classifier's recursive setting
+            files = []
+            for directory in selected_dirs:
+                dir_files = self.classifier.classify_directory(directory, recursive=self.scanner.recursive)
+                files.extend(dir_files)
 
             if not files:
                 print("❌ No files found to archive.")
@@ -175,8 +181,16 @@ class CLI:
             print("No recommendations available.")
             return
 
+        home = Path.home()
         for i, rec in enumerate(recommendations, 1):
-            print(f"{i}. {rec.path}")
+            # Display relative path from home or absolute path
+            try:
+                display_path = f"~/{rec.path.relative_to(home)}"
+            except ValueError:
+                # Not relative to home, use absolute path
+                display_path = str(rec.path)
+            
+            print(f"{i}. {display_path}")
             print(f"   Score: {rec.score:.1f}/10")
             print(f"   Files: {rec.total_files}")
             print(f"   Types: {rec.file_types} different extensions")
